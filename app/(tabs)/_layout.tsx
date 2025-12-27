@@ -1,34 +1,29 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import { Bike, Map, User } from 'lucide-react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
+    <Tabs screenOptions={{ tabBarActiveTintColor: '#2563EB', headerShown: false }}>
+      <Tabs.Screen 
+        name="index" 
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
+          title: 'Mappa',
+          tabBarIcon: ({ color }) => <Map color={color} size={24} />,
+        }} 
       />
-      <Tabs.Screen
-        name="explore"
+      <Tabs.Screen 
+        name="order" 
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
+          title: 'Live Orders',
+          tabBarIcon: ({ color }) => <Bike color={color} size={24} />,
+        }} 
+      />
+      <Tabs.Screen 
+        name="profile" 
+        options={{
+          title: 'Profilo',
+          tabBarIcon: ({ color }) => <User color={color} size={24} />,
+        }} 
       />
     </Tabs>
   );
