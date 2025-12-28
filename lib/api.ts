@@ -1,9 +1,19 @@
+import Constants from "expo-constants";
 import * as SecureStore from 'expo-secure-store';
 
+const getBaseUrl = () => {
+  if (Constants.expoConfig?.hostUri) {
 
-const AUTH_API_BASE = "http://10.0.2.2:8080";
-const SHOP_API_BASE = "http://10.0.2.2:8083";
-// const RIDER_API_BASE = "http://10.0.2.2:8082";
+    const host = Constants.expoConfig.hostUri.split(':')[0];
+    return `http://${host}`; 
+  }
+
+
+  return 'http://10.0.2.2'; 
+};
+const AUTH_API_BASE = getBaseUrl() + ":8080";
+const SHOP_API_BASE = getBaseUrl() + ":8083";
+const RIDER_API_BASE = getBaseUrl() + ":8082";
 
 
 const getAuthHeaders = async () => {
