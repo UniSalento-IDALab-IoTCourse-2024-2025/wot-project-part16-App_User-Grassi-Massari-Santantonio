@@ -139,7 +139,7 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
             console.log(`Distanza calcolata: ${distance.toFixed(3)} km`);
 
             // SOGLIA: 1 KM
-            const MAX_DISTANCE_KM = 1.0; 
+            const MAX_DISTANCE_KM = 5.0; 
 
             if (distance > MAX_DISTANCE_KM) {
                 setPlacingOrder(false); 

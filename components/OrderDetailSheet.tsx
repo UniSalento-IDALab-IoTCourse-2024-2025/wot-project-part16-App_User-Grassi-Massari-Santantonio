@@ -1,5 +1,5 @@
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { Bike, CheckCircle2, ChefHat, Clock, MapPin, X } from 'lucide-react-native';
+import { Activity, Bike, CheckCircle2, ChefHat, Clock, MapPin, X } from 'lucide-react-native';
 import mqtt from 'mqtt';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
@@ -20,56 +20,53 @@ interface Coords {
 
 const getStatusLevel = (status: string | undefined) => {
     switch (status) {
-        case 'PENDING':
-            return 0;
+        case 'PENDING': return 0;
         case 'ACCEPTED':
-        case 'IN_PROGRESS':
-            return 1;
-        case 'DELIVER':      // Rider sta andando al ristorante
-        case 'DELIVERING':   // Rider sta andando dal cliente
-            return 2;
+        case 'IN_PROGRESS': return 1;
+        case 'DELIVER':      
+        case 'DELIVERING': return 2;
         case 'DELIVERED':
-        case 'COMPLETED':
-            return 3;
-        case 'CANCELLED':    // Gestione opzionale cancellati
-        case 'REJECTED':
-            return -1;
-        default:
-            return 0;
+        case 'COMPLETED': return 3;
+        default: return 0;
     }
 };
 
-const MQTT_BROKER_URL = 'ws://10.0.2.2:9001';
+const getHealthColor = (status: string) => {
+    const cleanStatus = status.trim();
+    switch (cleanStatus) {
+        case 'VERY_POSITIVE': return '#16A34A'; 
+        case 'POSITIVE': return '#84CC16';      
+        case 'MEDIUM': return '#EAB308';        
+        case 'NEGATIVE': return '#F97316';      
+        case 'VERY_NEGATIVE': return '#DC2626'; 
+        default: return '#64748B';              
+    }
+};
+
+const MQTT_BROKER_URL = 'ws://10.175.177.237:9001';
 
 export default function OrderDetailSheet({ order, onClose }: Props) {
     const bottomSheetRef = useRef<BottomSheet>(null);
     const mapRef = useRef<MapView>(null);
-    const snapPoints = useMemo(() => ['50%', '90%'], []);
+    const snapPoints = useMemo(() => ['50%', '95%'], []);
 
     const [shopCoords, setShopCoords] = useState<Coords | null>(null);
     const [deliveryCoords, setDeliveryCoords] = useState<Coords | null>(null);
-
-
     const [riderRealtimePos, setRiderRealtimePos] = useState<Coords | null>(null);
     const [loadingMap, setLoadingMap] = useState(true);
+    const [healthStatus, setHealthStatus] = useState<string>('WAITING');
 
-
-
-
+    // Serve per evitare che la mappa si ricarichi se l'ordine si aggiorna ma è lo stesso ID
+    const lastOrderIdRef = useRef<string | null>(null);
 
     const geocodeAddress = async (street: string, city: string): Promise<Coords | null> => {
         try {
             const query = `${street}, ${city}`;
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
-            const response = await fetch(url, {
-                headers: { 'User-Agent': 'FastGoUserApp/1.0' }
-            });
+            const response = await fetch(url, { headers: { 'User-Agent': 'FastGoUserApp/1.0' } });
             const data = await response.json();
             if (data && data.length > 0) {
-                return {
-                    latitude: parseFloat(data[0].lat),
-                    longitude: parseFloat(data[0].lon)
-                };
+                return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
             }
             return null;
         } catch (error) {
@@ -78,108 +75,98 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
         }
     };
 
-
+    // 1. CARICAMENTO COORDINATE (Solo se cambia ID ordine)
     useEffect(() => {
-        if (order?.id) {
+        if (order?.id && order.id !== lastOrderIdRef.current) {
+            lastOrderIdRef.current = order.id;
+            
             bottomSheetRef.current?.snapToIndex(0);
             setLoadingMap(true);
-            // Reset rider position quando cambia ordine
             setRiderRealtimePos(null);
+            setHealthStatus('WAITING');
 
             const fetchCoords = async () => {
                 const shopPos = await geocodeAddress(order.shopAddress.street, order.shopAddress.city);
                 const deliveryPos = await geocodeAddress(order.deliveryAddress.street, order.deliveryAddress.city);
-
+                
                 setShopCoords(shopPos);
                 setDeliveryCoords(deliveryPos);
-                setLoadingMap(false);
+                
+                // Piccolo delay per permettere al BottomSheet di animarsi prima di renderizzare la mappa pesante
+                setTimeout(() => setLoadingMap(false), 500);
             };
 
             fetchCoords();
         }
     }, [order?.id]);
 
-
+    // 2. MQTT (Rider Pos + Health)
     useEffect(() => {
         if (!order) return;
 
-        console.log(`[CLIENT MQTT] Connessione a ${MQTT_BROKER_URL}...`);
-
         const client = mqtt.connect(MQTT_BROKER_URL, {
-            clientId: `user_app_${Math.random().toString(16).substr(2, 8)}`,
+            clientId: `user_sheet_${Math.random().toString(16).substr(2, 8)}`,
             keepalive: 60,
         });
 
         client.on('connect', () => {
-            console.log("[CLIENT MQTT] Connesso!");
-
-            const topic = `rider/position/${order.shopId}/${order.id}`;
-
-            client.subscribe(topic, (err) => {
-                if (!err) {
-                    console.log(`[CLIENT MQTT] Sottoscritto a: ${topic}`);
-                } else {
-                    console.error("[CLIENT MQTT] Errore sottoscrizione:", err);
-                }
-            });
+            console.log("[SHEET MQTT] Connesso");
+            // Posizione
+            client.subscribe(`rider/position/${order.shopId}/${order.id}`, { qos: 0 });
+            // Inferenza
+            client.subscribe(`inference/${order.id}/+`, { qos: 0 });
         });
 
         client.on('message', (topic, message) => {
             try {
                 const payload = JSON.parse(message.toString());
-                console.log("[CLIENT MQTT] Posizione ricevuta:", payload.latitude, payload.longitude);
 
-
-                setRiderRealtimePos({
-                    latitude: payload.latitude,
-                    longitude: payload.longitude
-                });
-
+                if (topic.includes('rider/position')) {
+                    setRiderRealtimePos({
+                        latitude: payload.latitude,
+                        longitude: payload.longitude
+                    });
+                } 
+                else if (topic.startsWith('inference/')) {
+                    if (payload.status_raw) {
+                        const rawString = payload.status_raw.toString();
+                        if (rawString.includes(',')) {
+                            const parts = rawString.split(',');
+                            setHealthStatus(parts[parts.length - 1].trim());
+                        } else {
+                            setHealthStatus(rawString.trim());
+                        }
+                    }
+                }
             } catch (e) {
-                console.error("Errore parsing messaggio MQTT", e);
+                console.warn("[SHEET MQTT] Errore parse", e);
             }
         });
 
-        client.on('error', (err) => console.warn("[CLIENT MQTT] Errore:", err));
-
-
-        return () => {
-            if (client) {
-                client.end();
-                console.log("[CLIENT MQTT] Disconnesso");
-            }
-        };
+        return () => { client.end(); };
     }, [order?.id]);
 
-
-
+    // 3. ZOOM AUTOMATICO
     useEffect(() => {
         if (!loadingMap && shopCoords && deliveryCoords && mapRef.current) {
             const coordsToFit = [shopCoords, deliveryCoords];
-
             if (riderRealtimePos) coordsToFit.push(riderRealtimePos);
 
-            setTimeout(() => {
-                mapRef.current?.fitToCoordinates(coordsToFit, {
-                    edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-                    animated: true,
-                });
-            }, 1000);
+            mapRef.current.fitToCoordinates(coordsToFit, {
+                edgePadding: { top: 80, right: 50, bottom: 50, left: 50 },
+                animated: true,
+            });
         }
-    }, [loadingMap, shopCoords, deliveryCoords, riderRealtimePos]);
+    }, [loadingMap, shopCoords, deliveryCoords, riderRealtimePos]); // Aggiorna zoom se il rider si muove
 
     if (!order) return null;
+    
     const currentLevel = getStatusLevel(order.orderStatus);
+    const isDelivering = ['DELIVER', 'DELIVERING'].includes(order.orderStatus);
 
-    // Determina quali punti collegare con la linea
     const getPolylineCoords = () => {
         if (!shopCoords || !deliveryCoords) return [];
-
-
-        if (riderRealtimePos) {
-            return [shopCoords, riderRealtimePos, deliveryCoords];
-        }
-
+        if (riderRealtimePos) return [shopCoords, riderRealtimePos, deliveryCoords];
         return [shopCoords, deliveryCoords];
     };
 
@@ -207,10 +194,10 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
                 <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 50 }}>
 
                     {/* MAPPA DINAMICA */}
-                    <View className="h-64 w-full bg-gray-100 mb-6 justify-center items-center">
+                    <View className="h-72 w-full bg-gray-100 mb-6 justify-center items-center">
                         {loadingMap ? (
                             <View className="items-center">
-                                <ActivityIndicator size="small" color="#2563EB" />
+                                <ActivityIndicator size="large" color="#2563EB" />
                                 <Text className="text-xs text-slate-400 mt-2">Caricamento mappa...</Text>
                             </View>
                         ) : shopCoords && deliveryCoords ? (
@@ -224,25 +211,18 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
                                     latitudeDelta: 0.05,
                                     longitudeDelta: 0.05,
                                 }}
-                                scrollEnabled={true}
-                                zoomEnabled={true}
                             >
-                                {/* Ristorante */}
                                 <CustomMarker coordinate={shopCoords} title={order.shopName} onPress={() => { }} />
-
-                                {/* Casa */}
                                 <DeliveryMarker coordinate={deliveryCoords} />
-
-                                {/* RIDER  */}
+                                
                                 {riderRealtimePos && (
-                                    <Marker coordinate={riderRealtimePos} title="Il tuo Rider">
+                                    <Marker coordinate={riderRealtimePos} title="Il tuo Rider" zIndex={100}>
                                         <View className="bg-white p-2 rounded-full border-2 border-purple-600 shadow-md">
-                                            <Bike size={20} color="#7E22CE" />
+                                            <Bike size={24} color="#7E22CE" />
                                         </View>
                                     </Marker>
                                 )}
 
-                                {/* Linea percorso */}
                                 <Polyline
                                     coordinates={getPolylineCoords()}
                                     strokeColor="#7E22CE"
@@ -251,28 +231,36 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
                                 />
                             </MapView>
                         ) : (
-                            <Text className="text-slate-400">Impossibile caricare la mappa.</Text>
-                        )}
-
-                        {/* Overlay Info Rider */}
-                        {(order.orderStatus === 'DELIVERING' && riderRealtimePos) && (
-                            <View className="absolute bottom-4 left-4 right-4 bg-white p-3 rounded-xl shadow-md flex-row items-center gap-3">
-                                <View className="bg-purple-100 p-2 rounded-full">
-                                    <Bike size={20} color="#7E22CE" />
-                                </View>
-                                <View>
-                                    <Text className="font-bold text-slate-800">Rider in movimento</Text>
-                                    <Text className="text-xs text-slate-500">Segui la consegna in tempo reale</Text>
-                                </View>
-                            </View>
+                            <Text className="text-slate-400">Mappa non disponibile</Text>
                         )}
                     </View>
+
+                    {/* BARRA SALUTE ORDINE (VISIBILE SOLO IN CONSEGNA) */}
+                    {isDelivering && (
+                        <View 
+                            style={{ 
+                                backgroundColor: getHealthColor(healthStatus),
+                                marginHorizontal: 20, 
+                                marginBottom: 20, 
+                                padding: 12, 
+                                borderRadius: 12, 
+                                flexDirection: 'row', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                gap: 10,
+                                elevation: 3
+                            }}
+                        >
+                            <Activity size={24} color="white" />
+                            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                                TRASPORTO: {healthStatus.replace('_', ' ')}
+                            </Text>
+                        </View>
+                    )}
 
                     {/* TIMELINE STATO */}
                     <View className="px-6 mb-8">
                         <Text className="font-bold text-lg mb-4 text-slate-800">Stato Ordine</Text>
-
-
                         <StatusStep
                             title="Ordine Inviato"
                             desc="In attesa di conferma"
@@ -281,8 +269,6 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
                             isLast={false}
                             color="bg-yellow-500"
                         />
-
-
                         <StatusStep
                             title="Preparazione"
                             desc="Il ristorante sta cucinando"
@@ -291,18 +277,14 @@ export default function OrderDetailSheet({ order, onClose }: Props) {
                             isLast={false}
                             color="bg-blue-500"
                         />
-
-
                         <StatusStep
                             title="In Consegna"
-                            desc="Il rider ha ritirato l'ordine"
+                            desc="Il rider è in arrivo"
                             icon={<Bike size={16} color="white" />}
                             active={currentLevel >= 2}
                             isLast={false}
                             color="bg-purple-500"
                         />
-
-
                         <StatusStep
                             title="Consegnato"
                             desc="Buon appetito!"

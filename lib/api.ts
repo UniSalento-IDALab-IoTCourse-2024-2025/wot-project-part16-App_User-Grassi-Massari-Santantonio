@@ -9,7 +9,7 @@ const getBaseUrl = () => {
   }
 
 
-  return 'http://10.0.2.2'; 
+  return 'http://10.175.177.237'; 
 };
 const AUTH_API_BASE = getBaseUrl() + ":8080";
 const SHOP_API_BASE = getBaseUrl() + ":8083";

@@ -9,10 +9,20 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# Native - Generated folders (Queste cartelle vengono ricreate da 'npx expo run:android')
+/ios/
+/android/
+
+# Native Build Artifacts (Se crei manualmente gli APK)
+*.apk
+*.aab
+*.apks
+
+# Native Secrets & Keys (Non caricare MAI le chiavi su git!)
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
@@ -36,8 +46,13 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Editor / IDE (File di configurazione locali di Android Studio/VSCode)
+.idea/
+.vscode/
+*.swp
+*.swo
+
 app-example
 
-# generated native folders
-/ios
-/android
+.env
+.env*.local
