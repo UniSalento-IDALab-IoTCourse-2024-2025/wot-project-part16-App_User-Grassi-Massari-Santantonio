@@ -1,50 +1,90 @@
-# Welcome to your Expo app 👋
+# FastGo User Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Questa è l'applicazione mobile dedicata ai clienti (User) della piattaforma FastGo. Sviluppata con **React Native** ed **Expo**, permette agli utenti di localizzare i ristoranti nelle vicinanze, effettuare ordini e monitorare lo stato della consegna in tempo reale grazie all'integrazione MQTT.
 
-## Get started
+## Stack Tecnologico
 
-1. Install dependencies
+* **Framework:** React Native (via Expo SDK 50+)
+* **Routing:** Expo Router (File-based routing)
+* **Styling:** NativeWind (Tailwind CSS per React Native)
+* **Mappe:** react-native-maps (Integrazione Google Maps/Apple Maps)
+* **Real-time:** MQTT (via WebSockets)
+* **Notifiche:** expo-notifications
 
-   ```bash
+## Struttura del Progetto
+
+.
+├── app/
+│   ├── (auth)/             # Flusso di autenticazione (Login, Registrazione)
+│   ├── (tabs)/             # Navigazione principale (Mappa, Ordini, Profilo)
+│   ├── _layout.tsx         # Gestione globale del routing e protezione rotte
+│   └── modal.tsx           # Schermate modali
+├── components/             # Componenti UI (Card, Marker Mappa, BottomSheets)
+├── context/
+│   └── AuthContext.tsx     # Gestione stato utente e persistenza token
+├── lib/
+│   ├── api.ts              # Chiamate REST al backend
+│   └── utils.ts            # Funzioni di utilità
+└── assets/                 # Risorse statiche
+
+## Prerequisiti
+
+* Node.js (LTS)
+* npm o yarn
+* Emulatore Android/iOS o dispositivo fisico
+
+## Installazione
+
+1. Installare le dipendenze del progetto:
    npm install
-   ```
 
-2. Start the app
+2. Generare la cartella nativa (necessaria per mappe e permessi di localizzazione):
+   npx expo prebuild
 
-   ```bash
-   npx expo start
-   ```
+## Configurazione IP e MQTT
 
-In the output, you'll find options to open the app in a
+L'applicazione comunica con il backend e il broker MQTT. È necessario configurare gli indirizzi IP corretti in base al proprio ambiente di rete.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+1. **Broker MQTT:**
+   Aprire il file `app/(tabs)/order.tsx` e aggiornare la costante `MQTT_BROKER_WS`:
+   
+   // Per emulatore Android
+   const MQTT_BROKER_WS = 'ws://10.0.2.2:9001';
+   
+   // Per dispositivo fisico (usare l'IP locale del PC)
+   const MQTT_BROKER_WS = 'ws://192.168.1.X:9001';
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+2. **Backend API:**
+   Verificare l'URL base nel file `lib/api.ts` (o dove configurato) per puntare al Gateway corretto.
 
-## Get a fresh project
+## Avvio dell'Applicazione
 
-When you're ready, run:
+Per avviare l'applicazione in modalità sviluppo:
 
-```bash
-npm run reset-project
-```
+npx expo run:android
+# oppure
+npx expo run:ios
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Funzionalità Principali
 
-## Learn more
+### 1. Mappa e Geolocalizzazione
+* La schermata Home (`app/(tabs)/index.tsx`) utilizza `react-native-maps`.
+* Richiede i permessi di localizzazione per centrare la mappa sull'utente.
+* Mostra i ristoranti nelle vicinanze tramite marker interattivi.
+* **Fallback:** Se il GPS non è disponibile, la mappa si centra su una posizione di default (Lecce).
 
-To learn more about developing your project with Expo, look at the following resources:
+### 2. Gestione Ordini e Tracking Real-time
+* La schermata Ordini (`app/(tabs)/order.tsx`) mostra lo storico e gli ordini attivi.
+* Si connette al Broker MQTT sulla porta **9001** (WebSockets).
+* Sottoscrive i topic relativi agli ordini attivi (`shop/{shopId}/{orderId}`).
+* Riceve aggiornamenti di stato istantanei e invia una **notifica locale** all'utente quando lo stato cambia (es. "In Consegna", "Consegnato").
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 3. Autenticazione
+* Gestisce Login e Registrazione.
+* Impedisce l'accesso alla dashboard se l'utente non ha il ruolo `USER`.
+* Gestisce la persistenza della sessione.
 
-## Join the community
+## Permessi Richiesti
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+* `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`: Per la ricerca ristoranti e indirizzo consegna.
+* `NOTIFICATIONS`: Per notificare i cambi di stato dell'ordine.
