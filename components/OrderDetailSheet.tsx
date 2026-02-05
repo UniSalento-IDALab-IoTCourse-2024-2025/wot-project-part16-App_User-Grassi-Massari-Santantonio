@@ -43,7 +43,8 @@ const getHealthColor = (status: string) => {
     }
 };
 
-const MQTT_BROKER_URL = 'ws://10.175.177.237:9001';
+//const MQTT_BROKER_URL = 'ws://10.175.177.237:9001';  // ip del computer o server
+const MQTT_BROKER_URL = 'ws://10.0.2.2:9001';// 10.0.2.2 per emulatore Android
 
 export default function OrderDetailSheet({ order, onClose }: Props) {
     const bottomSheetRef = useRef<BottomSheet>(null);

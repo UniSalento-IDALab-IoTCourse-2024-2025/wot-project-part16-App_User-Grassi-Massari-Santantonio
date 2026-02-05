@@ -5,11 +5,13 @@ const getBaseUrl = () => {
   if (Constants.expoConfig?.hostUri) {
 
     const host = Constants.expoConfig.hostUri.split(':')[0];
-    return `http://${host}`; 
+    //return `http://${host}`; 
+    return 'http://10.0.2.2';   // android emulator
   }
 
 
-  return 'http://10.175.177.237'; 
+  //return 'http://10.175.177.237'; // ip del computer o server
+  return 'http://10.0.2.2';   // android emulator 
 };
 const AUTH_API_BASE = getBaseUrl() + ":8080";
 const SHOP_API_BASE = getBaseUrl() + ":8083";

@@ -7,7 +7,9 @@ import OrderDetailSheet from '../../components/OrderDetailSheet';
 import { useAuth } from '../../context/AuthContext';
 import { getMyOrders, OrderDto } from '../../lib/api';
 
-const MQTT_BROKER_WS = "ws://10.175.177.237:9001"; 
+
+//const MQTT_BROKER_WS = 'ws://10.175.177.237:9001';  // ip del computer o server
+const MQTT_BROKER_WS = 'ws://10.0.2.2:9001';// 10.0.2.2 per emulatore Android
 
 // Configurazione notifiche
 Notifications.setNotificationHandler({
