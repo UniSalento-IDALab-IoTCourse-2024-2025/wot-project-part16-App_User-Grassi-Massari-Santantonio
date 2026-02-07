@@ -45,7 +45,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
   const [isCheckoutMode, setIsCheckoutMode] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  // NDIRIZZO STRUTTURATO
   const [addressDetails, setAddressDetails] = useState<AddressDetails>({
     street: '',
     number: '',
@@ -53,9 +52,14 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
     zipCode: '73100'
   });
   
-  // Stato per gestire la UI di modifica (form vs visualizzazione)
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
+
+  const isAddressComplete = 
+    addressDetails.street.trim() !== '' && 
+    addressDetails.number.trim() !== '' && 
+    addressDetails.city.trim() !== '' && 
+    addressDetails.zipCode.trim() !== '';
 
   useEffect(() => {
     if (restaurant?.id) {
@@ -66,7 +70,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
     }
   }, [restaurant]);
 
-  // Reverse Geocoding: Popola i campi strutturati
   useEffect(() => {
     const fetchAddress = async () => {
       if (!userLocation) return;
@@ -119,21 +122,18 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
 
   const total = cart.reduce((sum, item) => sum + item.price, 0);
 
-  // Validazione e Creazione Ordine
   const handleCreateOrder = async () => {
     if (!user || !restaurant || !userLocation) return;
 
-    // Controllo campi vuoti
-    if (!addressDetails.street || !addressDetails.city) {
-        Alert.alert("Indirizzo incompleto", "Per favore inserisci almeno la via e la città.");
-        setIsEditingAddress(true); // Apre il form se mancano dati
+    if (!isAddressComplete) {
+        Alert.alert("Indirizzo incompleto", "Per favore compila tutti i campi dell'indirizzo (Via, Civico, CAP, Città).");
+        setIsEditingAddress(true); 
         return;
     }
 
     setPlacingOrder(true);
     Keyboard.dismiss();
 
-    // stringa completa per la verifica della distanza
     const fullAddressString = `${addressDetails.street} ${addressDetails.number}, ${addressDetails.city}, ${addressDetails.zipCode}`;
 
     try {
@@ -172,7 +172,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
             }
             submitOrder();
         } else {
-            // Indirizzo non geocodificato
             setPlacingOrder(false);
             Alert.alert(
                 "Indirizzo non verificato",
@@ -247,7 +246,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
       backgroundStyle={{ backgroundColor: 'white', borderRadius: 24, shadowColor: "#000", elevation: 10 }}
     >
       <View className="flex-1 px-4">
-        {/* HEADER */}
         <View className="flex-row items-center border-b border-gray-100 pb-4 mb-2">
            <View className="w-16 h-16 bg-gray-200 rounded-lg mr-4 overflow-hidden">
               <Image 
@@ -270,14 +268,12 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
             <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 150 }}>
                 <Text className="text-lg font-bold mb-4 mt-2">Dettagli Consegna</Text>
                 
-                {/* BLOCCO INDIRIZZO */}
                 <View className="bg-blue-50 p-4 rounded-xl mb-6 border border-blue-100">
                     <View className="flex-row items-center justify-between mb-3">
                         <View className="flex-row items-center gap-2">
                             <MapPin size={18} color="#2563EB" />
                             <Text className="font-bold text-blue-800">Indirizzo di Consegna</Text>
                         </View>
-                        {/* Tasto Modifica / Salva */}
                         {!isAddressLoading && (
                             <TouchableOpacity 
                                 onPress={() => setIsEditingAddress(!isEditingAddress)}
@@ -301,7 +297,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
                     {isAddressLoading ? (
                         <Text className="text-slate-400 italic py-2">Rilevamento posizione...</Text>
                     ) : isEditingAddress ? (
-                        /* FORM DI MODIFICA STRUTTURATO */
                         <View className="gap-3">
                             <View>
                                 <Text className="text-xs text-slate-500 mb-1">Via / Piazza</Text>
@@ -344,7 +339,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
                             </View>
                         </View>
                     ) : (
-                        /* VISUALIZZAZIONE INDIRIZZO */
                         <View>
                              <Text className="text-lg font-bold text-slate-800">
                                 {addressDetails.street} {addressDetails.number}
@@ -362,7 +356,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
                     )}
                 </View>
 
-                {/* RIEPILOGO PIATTI  */}
                 <Text className="text-lg font-bold mb-4">Riepilogo Piatti</Text>
                 {cart.map((item, idx) => (
                     <View key={idx} className="flex-row justify-between items-center py-3 border-b border-gray-50">
@@ -377,7 +370,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
                 ))}
             </BottomSheetScrollView>
         ) : (
-            // LISTA MENU 
             <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 100 }}>
                 <Text className="text-lg font-bold mb-4 mt-2">Menu</Text>
                 {menuItems.length === 0 ? (
@@ -408,14 +400,13 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
             </BottomSheetScrollView>
         )}
 
-        {/* FOOTER */}
         {cart.length > 0 && (
             <View className="absolute bottom-6 left-4 right-4">
                 {isCheckoutMode ? (
                      <TouchableOpacity 
-                        className={`bg-green-600 p-4 rounded-xl flex-row justify-center items-center shadow-lg ${placingOrder ? 'opacity-70' : ''}`}
+                        className={`${!isAddressComplete || placingOrder ? 'bg-gray-400' : 'bg-green-600'} p-4 rounded-xl flex-row justify-center items-center shadow-lg ${placingOrder ? 'opacity-70' : ''}`}
                         onPress={handleCreateOrder}
-                        disabled={placingOrder}
+                        disabled={placingOrder || !isAddressComplete}
                     >
                         {placingOrder ? <ActivityIndicator color="white" /> : (
                             <>
