@@ -1,5 +1,5 @@
 import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
-import { MapPin, Minus, Plus, X } from 'lucide-react-native';
+import { Check, MapPin, Minus, Pencil, Plus, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
@@ -11,9 +11,15 @@ interface Props {
   userLocation: Coordinates | null;
 }
 
+interface AddressDetails {
+  street: string;
+  number: string;
+  city: string;
+  zipCode: string;
+}
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Raggio della terra in km
+  const R = 6371; 
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -21,7 +27,7 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distanza in km
+  return R * c;
 }
 
 function deg2rad(deg: number) {
@@ -39,10 +45,17 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
   const [isCheckoutMode, setIsCheckoutMode] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
 
-
-  const [deliveryAddressStr, setDeliveryAddressStr] = useState("");
+  // NDIRIZZO STRUTTURATO
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>({
+    street: '',
+    number: '',
+    city: 'Lecce',
+    zipCode: '73100'
+  });
+  
+  // Stato per gestire la UI di modifica (form vs visualizzazione)
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isAddressLoading, setIsAddressLoading] = useState(false);
-
 
   useEffect(() => {
     if (restaurant?.id) {
@@ -53,6 +66,7 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
     }
   }, [restaurant]);
 
+  // Reverse Geocoding: Popola i campi strutturati
   useEffect(() => {
     const fetchAddress = async () => {
       if (!userLocation) return;
@@ -69,13 +83,16 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
         
         const data = await response.json();
         if (data && data.address) {
-          const street = data.address.road || data.address.pedestrian || "";
-          const city = data.address.city || data.address.town || data.address.village || "";
-          setDeliveryAddressStr(`${street}, ${city}`); 
+          setAddressDetails({
+            street: data.address.road || data.address.pedestrian || "",
+            number: data.address.house_number || "",
+            city: data.address.city || data.address.town || data.address.village || "",
+            zipCode: data.address.postcode || ""
+          });
         }
       } catch (error) {
         console.error("Errore reverse geocoding", error);
-        setDeliveryAddressStr("Indirizzo non rilevato, inserisci manualmente.");
+     
       } finally {
         setIsAddressLoading(false);
       }
@@ -102,23 +119,26 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
 
   const total = cart.reduce((sum, item) => sum + item.price, 0);
 
-
+  // Validazione e Creazione Ordine
   const handleCreateOrder = async () => {
     if (!user || !restaurant || !userLocation) return;
 
-
-    if (!deliveryAddressStr || deliveryAddressStr.length < 3) {
-        Alert.alert("Indirizzo mancante", "Per favore inserisci un indirizzo valido.");
+    // Controllo campi vuoti
+    if (!addressDetails.street || !addressDetails.city) {
+        Alert.alert("Indirizzo incompleto", "Per favore inserisci almeno la via e la città.");
+        setIsEditingAddress(true); // Apre il form se mancano dati
         return;
     }
 
     setPlacingOrder(true);
     Keyboard.dismiss();
 
+    // stringa completa per la verifica della distanza
+    const fullAddressString = `${addressDetails.street} ${addressDetails.number}, ${addressDetails.city}, ${addressDetails.zipCode}`;
+
     try {
-        
         const geoResponse = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(deliveryAddressStr)}`,
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddressString)}`,
             {
                 headers: { 'User-Agent': 'FastGoUserApp/1.0' }
             }
@@ -126,7 +146,6 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
         
         const geoData = await geoResponse.json();
 
-        //  Indirizzo Trovato , chekc distanza
         if (geoData && geoData.length > 0) {
             const inputLat = parseFloat(geoData[0].lat);
             const inputLon = parseFloat(geoData[0].lon);
@@ -137,34 +156,29 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
             );
 
             console.log(`Distanza calcolata: ${distance.toFixed(3)} km`);
-
-            // SOGLIA: 1 KM
             const MAX_DISTANCE_KM = 5.0; 
 
             if (distance > MAX_DISTANCE_KM) {
                 setPlacingOrder(false); 
                 Alert.alert(
                     "Indirizzo troppo lontano",
-                    `Hai inserito "${deliveryAddressStr}" che dista ${distance.toFixed(1)}km dal marker sulla mappa.`,
+                    `L'indirizzo dista ${distance.toFixed(1)}km dalla tua posizione attuale GPS. Sei sicuro?`,
                     [
-                        { text: "Indietro", style: "cancel" },
-                       
+                        { text: "Modifica", onPress: () => setIsEditingAddress(true) },
+                        { text: "Conferma comunque", onPress: () => submitOrder() } 
                     ]
                 );
                 return; 
             }
-
-            
             submitOrder();
-        } 
-        // Indirizzo non Trovato 
-        else {
+        } else {
+            // Indirizzo non geocodificato
             setPlacingOrder(false);
             Alert.alert(
-                "Indirizzo non riconosciuto",
-                "Non riusciamo a verificare questo indirizzo sulla mappa. Controlla di aver scritto Città e Via.",
+                "Indirizzo non verificato",
+                "Non riusciamo a trovare questo indirizzo preciso sulla mappa. Controlla i dati.",
                 [
-                    { text: "Correggi", style: "cancel" },
+                    { text: "Correggi", onPress: () => setIsEditingAddress(true) },
                     { text: "Usa comunque", onPress: () => submitOrder() }
                 ]
             );
@@ -173,20 +187,13 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
     } catch (e) {
         setPlacingOrder(false);
         console.error("Errore verifica distanza", e);
-        Alert.alert("Errore Connessione", "Impossibile verificare l'indirizzo.");
+        Alert.alert("Errore Connessione", "Impossibile verificare l'indirizzo, riprova.");
     }
   };
 
-
   const submitOrder = async () => {
     if (!user || !restaurant) return;
-    
-
     setPlacingOrder(true);
-
-    const addressParts = deliveryAddressStr.split(',');
-    const street = addressParts[0].trim();
-    const city = addressParts.length > 1 ? addressParts[1].trim() : "Lecce";
 
     const orderPayload: OrderDto = {
         id: "",
@@ -199,10 +206,11 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
              city: restaurant.restaurantCity,
              zipCode: restaurant.restaurantPostalCode || "00000"
         },
+ 
         deliveryAddress: {
-            street: street,
-            city: city,
-            zipCode: "00000" 
+            street: `${addressDetails.street} ${addressDetails.number}`, 
+            city: addressDetails.city,
+            zipCode: addressDetails.zipCode
         },
         orderDetails: cart.map(i => ({
             productName: i.name,
@@ -259,30 +267,102 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
         {loading ? (
             <ActivityIndicator size="large" color="#2563EB" className="mt-10" />
         ) : isCheckoutMode ? (
-            <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+            <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 150 }}>
                 <Text className="text-lg font-bold mb-4 mt-2">Dettagli Consegna</Text>
                 
+                {/* BLOCCO INDIRIZZO */}
                 <View className="bg-blue-50 p-4 rounded-xl mb-6 border border-blue-100">
-                    <View className="flex-row items-center gap-2 mb-2">
-                        <MapPin size={18} color="#2563EB" />
-                        <Text className="font-bold text-blue-800">Indirizzo di Consegna</Text>
+                    <View className="flex-row items-center justify-between mb-3">
+                        <View className="flex-row items-center gap-2">
+                            <MapPin size={18} color="#2563EB" />
+                            <Text className="font-bold text-blue-800">Indirizzo di Consegna</Text>
+                        </View>
+                        {/* Tasto Modifica / Salva */}
+                        {!isAddressLoading && (
+                            <TouchableOpacity 
+                                onPress={() => setIsEditingAddress(!isEditingAddress)}
+                                className="flex-row items-center gap-1 bg-white px-2 py-1 rounded-md border border-blue-200"
+                            >
+                                {isEditingAddress ? (
+                                    <>
+                                        <Check size={14} color="green" />
+                                        <Text className="text-xs font-bold text-green-700">Fatto</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Pencil size={14} color="#2563EB" />
+                                        <Text className="text-xs font-bold text-blue-700">Modifica</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        )}
                     </View>
                     
                     {isAddressLoading ? (
-                        <Text className="text-slate-400 italic">Rilevamento posizione...</Text>
+                        <Text className="text-slate-400 italic py-2">Rilevamento posizione...</Text>
+                    ) : isEditingAddress ? (
+                        /* FORM DI MODIFICA STRUTTURATO */
+                        <View className="gap-3">
+                            <View>
+                                <Text className="text-xs text-slate-500 mb-1">Via / Piazza</Text>
+                                <BottomSheetTextInput
+                                    value={addressDetails.street}
+                                    onChangeText={(t) => setAddressDetails(prev => ({...prev, street: t}))}
+                                    placeholder="Es. Via Roma"
+                                    className="bg-white p-2 rounded border border-blue-200 text-slate-800"
+                                />
+                            </View>
+                            <View className="flex-row gap-3">
+                                <View className="flex-1">
+                                    <Text className="text-xs text-slate-500 mb-1">N. Civico</Text>
+                                    <BottomSheetTextInput
+                                        value={addressDetails.number}
+                                        onChangeText={(t) => setAddressDetails(prev => ({...prev, number: t}))}
+                                        placeholder="10"
+                                        className="bg-white p-2 rounded border border-blue-200 text-slate-800"
+                                    />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-xs text-slate-500 mb-1">CAP</Text>
+                                    <BottomSheetTextInput
+                                        value={addressDetails.zipCode}
+                                        onChangeText={(t) => setAddressDetails(prev => ({...prev, zipCode: t}))}
+                                        placeholder="73100"
+                                        keyboardType="numeric"
+                                        className="bg-white p-2 rounded border border-blue-200 text-slate-800"
+                                    />
+                                </View>
+                            </View>
+                            <View>
+                                <Text className="text-xs text-slate-500 mb-1">Città</Text>
+                                <BottomSheetTextInput
+                                    value={addressDetails.city}
+                                    onChangeText={(t) => setAddressDetails(prev => ({...prev, city: t}))}
+                                    placeholder="Città"
+                                    className="bg-white p-2 rounded border border-blue-200 text-slate-800"
+                                />
+                            </View>
+                        </View>
                     ) : (
-                        <BottomSheetTextInput
-                            value={deliveryAddressStr}
-                            onChangeText={setDeliveryAddressStr}
-                            placeholder="Inserisci via e numero civico"
-                            className="text-lg text-slate-800 border-b border-blue-200 pb-2"
-                        />
+                        /* VISUALIZZAZIONE INDIRIZZO */
+                        <View>
+                             <Text className="text-lg font-bold text-slate-800">
+                                {addressDetails.street} {addressDetails.number}
+                             </Text>
+                             <Text className="text-slate-600">
+                                {addressDetails.zipCode} {addressDetails.city}
+                             </Text>
+                        </View>
                     )}
-                    <Text className="text-xs text-blue-500 mt-2">
-                        Assicurati che l'indirizzo corrisponda al Marker sulla mappa (max 1km).
-                    </Text>
+
+                    {!isEditingAddress && (
+                        <Text className="text-xs text-blue-400 mt-2">
+                           L'indirizzo deve trovarsi entro 5km dal marker GPS.
+                        </Text>
+                    )}
                 </View>
 
+                {/* RIEPILOGO PIATTI  */}
                 <Text className="text-lg font-bold mb-4">Riepilogo Piatti</Text>
                 {cart.map((item, idx) => (
                     <View key={idx} className="flex-row justify-between items-center py-3 border-b border-gray-50">
@@ -297,6 +377,7 @@ export default function RestaurantSheet({ restaurant, onClose, userLocation }: P
                 ))}
             </BottomSheetScrollView>
         ) : (
+            // LISTA MENU 
             <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 100 }}>
                 <Text className="text-lg font-bold mb-4 mt-2">Menu</Text>
                 {menuItems.length === 0 ? (

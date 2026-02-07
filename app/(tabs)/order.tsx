@@ -9,7 +9,8 @@ import { getMyOrders, OrderDto } from '../../lib/api';
 
 
 //const MQTT_BROKER_WS = 'ws://10.175.177.237:9001';  // ip del computer o server
-const MQTT_BROKER_WS = 'ws://10.0.2.2:9001';// 10.0.2.2 per emulatore Android
+//const MQTT_BROKER_WS = 'ws://10.0.2.2:9001';// 10.0.2.2 per emulatore Android
+const MQTT_BROKER_WS = 'ws://98.95.66.15:9001';
 
 // Configurazione notifiche
 Notifications.setNotificationHandler({

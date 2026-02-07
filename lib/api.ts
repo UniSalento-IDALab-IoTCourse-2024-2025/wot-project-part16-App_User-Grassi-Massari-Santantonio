@@ -13,10 +13,13 @@ const getBaseUrl = () => {
   //return 'http://10.175.177.237'; // ip del computer o server
   return 'http://10.0.2.2';   // android emulator 
 };
-const AUTH_API_BASE = getBaseUrl() + ":8080";
-const SHOP_API_BASE = getBaseUrl() + ":8083";
-const RIDER_API_BASE = getBaseUrl() + ":8082";
+//const AUTH_API_BASE = getBaseUrl() + ":8080";
+//const SHOP_API_BASE = getBaseUrl() + ":8083";
+//const RIDER_API_BASE = getBaseUrl() + ":8082";
 
+const AUTH_API_BASE = "http://" + "52.21.35.190" + ":8080";
+const SHOP_API_BASE = "http://" + "18.233.248.251" + ":8080";
+const RIDER_API_BASE = "http://" + "54.174.240.142" + ":8080";
 
 const getAuthHeaders = async () => {
   const token = await SecureStore.getItemAsync('token');
