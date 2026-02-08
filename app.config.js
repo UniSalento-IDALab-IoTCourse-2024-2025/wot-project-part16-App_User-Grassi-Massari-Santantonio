@@ -39,7 +39,7 @@ export default {
       usesCleartextTraffic: true,
       config: {
         googleMaps: {
-          apiKey: "AIzaSyDOnHM5bdq9IMNZ9eVZvSceRlSD5pbjCAQ" //process.env.GOOGLE_MAPS_API_KEY 
+          apiKey: "" //process.env.GOOGLE_MAPS_API_KEY 
         }
       },
       edgeToEdgeEnabled: true,
