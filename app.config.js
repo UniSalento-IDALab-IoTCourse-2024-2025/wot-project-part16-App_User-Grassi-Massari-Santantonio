@@ -10,6 +10,14 @@ export default {
     scheme: "fastgouser",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    
+    extra: {
+      eas: {
+        projectId: "b9316012-0d4b-4c5a-9656-016d70986811"
+      }
+    },
+    // -------------------------------------
+
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.fastgo.user"
@@ -23,6 +31,7 @@ export default {
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       permissions: [
+        "INTERNET",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS"
@@ -30,7 +39,7 @@ export default {
       usesCleartextTraffic: true,
       config: {
         googleMaps: {
-          apiKey: process.env.GOOGLE_MAPS_API_KEY 
+          apiKey: "AIzaSyDOnHM5bdq9IMNZ9eVZvSceRlSD5pbjCAQ" //process.env.GOOGLE_MAPS_API_KEY 
         }
       },
       edgeToEdgeEnabled: true,
@@ -55,7 +64,16 @@ export default {
           }
         }
       ],
-       
+     
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+        
       "expo-location",
       "expo-secure-store",
       [
